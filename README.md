@@ -1,5 +1,5 @@
 # TripBoard
-ok
+
 > **Corporate Travel Management. Simplified.**
 
 TripBoard is a modern, enterprise-grade business travel and compliance management platform built with **Next.js 15 (App Router)**, **Tailwind CSS**, and **Supabase (PostgreSQL, Auth, Storage, and Row-Level Security)**.
