@@ -159,8 +159,11 @@ export async function addAndInviteEmployee(input: AddEmployeeInput): Promise<Add
 
   const adminName = adminProfile?.full_name || 'Organization Admin';
 
-  // 3. Prepare target setup-password onboarding URL
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
+  // 3. Prepare target setup-password onboarding URL (Use production Vercel domain)
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL && !process.env.NEXT_PUBLIC_SITE_URL.includes('localhost')
+      ? process.env.NEXT_PUBLIC_SITE_URL
+      : 'https://tripboard-dusky.vercel.app';
   const setupUrl = `${siteUrl}/auth/setup-password`;
   const directOnboardingUrl = `${setupUrl}?email=${encodeURIComponent(normalizedEmail)}&name=${encodeURIComponent(normalizedName)}&admin=${encodeURIComponent(adminName)}`;
 
