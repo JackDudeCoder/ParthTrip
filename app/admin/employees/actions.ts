@@ -51,8 +51,34 @@ export async function ensureAdminCompany(): Promise<{ companyId: string | null; 
 
   // Provision new company using privileged Admin client
   const adminClient = createAdminClient();
-  const domain = profile.email?.split('@')[1] || 'enterprise.com';
+  const rawDomain = profile.email?.split('@')[1] || 'enterprise.com';
+  const prefix = profile.email?.split('@')[0]?.replace(/[^a-z0-9]/gi, '') || 'org';
   const companyName = `${profile.full_name || 'My'}'s Organization`;
+
+  // Public email providers or existing domains must have unique tenant slugs
+  const publicProviders = [
+    'gmail.com',
+    'yahoo.com',
+    'hotmail.com',
+    'outlook.com',
+    'icloud.com',
+    'live.com',
+    'aol.com',
+    'proton.me',
+    'protonmail.com',
+  ];
+  let domain = rawDomain.toLowerCase();
+
+  const isPublicProvider = publicProviders.includes(domain);
+  const { data: existingDomain } = await adminClient
+    .from('companies')
+    .select('id')
+    .eq('domain', domain)
+    .maybeSingle();
+
+  if (isPublicProvider || existingDomain) {
+    domain = `${prefix}-${user.id.slice(0, 6)}.${domain}`;
+  }
 
   const { data: newCompany, error: compErr } = await adminClient
     .from('companies')
