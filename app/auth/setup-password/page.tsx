@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import { completeEmployeeOnboarding } from '@/app/auth/setup-password/actions';
 import { Eye, EyeOff, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react';
 
 const OTP_LENGTH = 6;
@@ -31,6 +32,7 @@ function SetupPasswordContent() {
   const [isResending, setIsResending] = useState(false);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const otpSentRef = useRef(false);
 
   // Password State
   const [password, setPassword] = useState('');
@@ -42,6 +44,57 @@ function SetupPasswordContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // 1. Session Isolation: Clear active session if belonging to a different user (e.g. Admin)
+  useEffect(() => {
+    async function checkActiveSession() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && email && user.email?.toLowerCase() !== email.toLowerCase()) {
+        await supabase.auth.signOut();
+      }
+    }
+    checkActiveSession();
+  }, [email, supabase]);
+
+  const startCooldown = () => {
+    setResendCooldown(RESEND_COOLDOWN);
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    cooldownRef.current = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(cooldownRef.current!);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (cooldownRef.current) clearInterval(cooldownRef.current);
+    };
+  }, []);
+
+  // 2. Auto-dispatch OTP on initial landing
+  useEffect(() => {
+    if (!email || otpSentRef.current) return;
+    otpSentRef.current = true;
+
+    async function autoSendOtp() {
+      try {
+        const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email);
+        if (!resetErr) {
+          setSuccessMsg('A 6-digit verification code has been dispatched to your email.');
+          startCooldown();
+        }
+      } catch {
+        // Silently allow manual resend button if auto-dispatch hits rate limiting
+      }
+    }
+
+    autoSendOtp();
+  }, [email, supabase]);
 
   // Handle OTP digit changes
   const handleOtpChange = (index: number, value: string) => {
@@ -74,26 +127,6 @@ function SetupPasswordContent() {
     const focusIndex = Math.min(pasted.length, OTP_LENGTH - 1);
     otpRefs.current[focusIndex]?.focus();
   };
-
-  const startCooldown = () => {
-    setResendCooldown(RESEND_COOLDOWN);
-    if (cooldownRef.current) clearInterval(cooldownRef.current);
-    cooldownRef.current = setInterval(() => {
-      setResendCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(cooldownRef.current!);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (cooldownRef.current) clearInterval(cooldownRef.current);
-    };
-  }, []);
 
   const handleResendOtp = async () => {
     if (!email || resendCooldown > 0 || isResending) return;
@@ -139,29 +172,36 @@ function SetupPasswordContent() {
     setLoading(true);
 
     try {
-      // 1. Verify OTP token
-      const { error: otpError } = await supabase.auth.verifyOtp({
+      // 1. Verify 6-digit OTP code
+      let authUser = null;
+      const { data: recoveryData, error: otpError } = await supabase.auth.verifyOtp({
         email,
         token,
         type: 'recovery',
       });
 
-      if (otpError) {
-        // Fallback check: try type 'email' if user was invited via signup
-        const { error: emailOtpError } = await supabase.auth.verifyOtp({
+      if (!otpError && recoveryData?.user) {
+        authUser = recoveryData.user;
+      } else {
+        // Fallback: verify as 'email' type
+        const { data: emailData, error: emailOtpError } = await supabase.auth.verifyOtp({
           email,
           token,
           type: 'email',
         });
 
-        if (emailOtpError) {
-          setError(otpError.message || emailOtpError.message || 'Invalid or expired verification code.');
+        if (!emailOtpError && emailData?.user) {
+          authUser = emailData.user;
+        } else {
+          setError(
+            otpError?.message || emailOtpError?.message || 'Invalid or expired verification code.'
+          );
           setLoading(false);
           return;
         }
       }
 
-      // 2. Set permanent password
+      // 2. Set user password
       const { error: passError } = await supabase.auth.updateUser({
         password,
       });
@@ -170,6 +210,11 @@ function SetupPasswordContent() {
         setError(passError.message || 'Failed to set password. Please try again.');
         setLoading(false);
         return;
+      }
+
+      // 3. Finalize onboarding in database
+      if (authUser?.id) {
+        await completeEmployeeOnboarding(authUser.id, email);
       }
 
       setSuccessMsg('Account successfully activated! Redirecting to your dashboard...');
