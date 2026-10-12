@@ -16,24 +16,8 @@ interface RupeeInputProps {
   className?: string;
 }
 
-// Indian numbering format: 150000 -> 1,50,000
-export function formatToINR(value: number | string): string {
-  if (value === undefined || value === null || value === '') return '';
-  const numStr = value.toString().replace(/[^0-9.]/g, '');
-  if (!numStr) return '';
-
-  const [integerPart, decimalPart] = numStr.split('.');
-  
-  // Format integer in Indian numbering system
-  let lastThree = integerPart.slice(-3);
-  const otherNumbers = integerPart.slice(0, -3);
-  if (otherNumbers !== '') {
-    lastThree = ',' + lastThree;
-  }
-  const formattedInteger = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + lastThree;
-
-  return decimalPart !== undefined ? `${formattedInteger}.${decimalPart.slice(0, 2)}` : formattedInteger;
-}
+import { formatToINR } from '@/lib/format';
+export { formatToINR };
 
 export function RupeeInput({
   label,

@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/AuthContext';
-import { IndiaDatePicker, toISODate } from '@/components/ui/IndiaDatePicker';
-import { RupeeInput, formatToINR } from '@/components/ui/RupeeInput';
+import { IndiaDatePicker } from '@/components/ui/IndiaDatePicker';
+import { RupeeInput } from '@/components/ui/RupeeInput';
+import { toISODate, formatToINR } from '@/lib/format';
 import { ArrowLeft, Users, Star, Plus } from 'lucide-react';
 
 interface Employee {

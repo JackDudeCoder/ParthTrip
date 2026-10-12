@@ -7,12 +7,11 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/AuthContext';
 import { IndiaDatePicker } from '@/components/ui/IndiaDatePicker';
 import { IndiaPhoneInput } from '@/components/ui/IndiaPhoneInput';
-import { User, ArrowLeft } from 'lucide-react';
+import { addAndInviteEmployee } from '@/app/admin/employees/actions';
+import { User, ArrowLeft, CheckCircle2, Copy, Check } from 'lucide-react';
 
 export default function AddEmployeePage() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
-  const { user, profile } = useAuth();
 
   const [fullName, setFullName] = useState('');
   const [employeeCode, setEmployeeCode] = useState('');
@@ -24,6 +23,8 @@ export default function AddEmployeePage() {
   const [passportNumber, setPassportNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successInfo, setSuccessInfo] = useState<{ inviteLink?: string; inviteSent?: boolean } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,64 +38,27 @@ export default function AddEmployeePage() {
     setLoading(true);
 
     try {
-      // 1. Get or create company_id
-      let companyId = profile?.company_id;
-
-      if (!companyId && user) {
-        // Query if company exists or create a default one for this admin
-        const { data: existingCompany } = await supabase
-          .from('companies')
-          .select('id')
-          .limit(1)
-          .maybeSingle();
-
-        if (existingCompany) {
-          companyId = existingCompany.id;
-        } else {
-          const { data: newCompany, error: compErr } = await supabase
-            .from('companies')
-            .insert({ name: 'My Enterprise', domain: email.split('@')[1] || 'company.com' })
-            .select('id')
-            .single();
-
-          if (compErr) throw compErr;
-          companyId = newCompany.id;
-        }
-
-        // Link company_id to profile
-        await supabase.from('profiles').update({ company_id: companyId }).eq('id', user.id);
-      }
-
-      if (!companyId) {
-        setError('No active enterprise company found. Please ensure your admin profile is linked.');
-        setLoading(false);
-        return;
-      }
-
-      // 2. Insert into employees
-      const { error: insertErr } = await supabase.from('employees').insert({
-        company_id: companyId,
-        full_name: fullName.trim(),
-        employee_code: employeeCode.trim().toUpperCase(),
-        email: email.trim().toLowerCase(),
+      const result = await addAndInviteEmployee({
+        fullName: fullName.trim(),
+        employeeCode: employeeCode.trim(),
+        email: email.trim(),
         phone: phone.trim(),
         department: department.trim(),
         designation: designation.trim() || 'Staff',
-        status: 'active',
-        passport_number: passportNumber.trim() || null,
+        passportNumber: passportNumber.trim() || undefined,
       });
 
-      if (insertErr) {
-        if (insertErr.message.includes('unique')) {
-          setError('An employee with this Employee Code or Email already exists.');
-        } else {
-          setError(insertErr.message || 'Failed to add employee.');
-        }
+      if (!result.success) {
+        setError(result.error || 'Failed to add employee.');
         setLoading(false);
         return;
       }
 
-      router.push('/admin/employees');
+      setSuccessInfo({
+        inviteLink: result.inviteLink,
+        inviteSent: result.inviteSent,
+      });
+      setLoading(false);
     } catch (err) {
       console.error('[AddEmployee]', err instanceof Error ? err.message : String(err));
       setError('An unexpected error occurred. Please try again.');
@@ -140,6 +104,65 @@ export default function AddEmployeePage() {
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
             {error}
+          </div>
+        )}
+
+        {successInfo && (
+          <div className="p-5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl space-y-3">
+            <div className="flex items-center gap-2.5 font-bold text-sm text-emerald-800">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <span>
+                Employee successfully added to database! A magic login link has been sent to their email.
+              </span>
+            </div>
+            {successInfo.inviteLink && (
+              <div className="space-y-1.5 pt-1">
+                <p className="text-xs text-slate-600 font-medium">Direct Invitation Link (for employee onboarding):</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={successInfo.inviteLink}
+                    className="flex-1 px-3 py-2 bg-white border border-emerald-300 rounded-xl text-xs font-mono text-slate-700 select-all outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(successInfo.inviteLink!);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="pt-2 flex items-center gap-3">
+              <Link
+                href="/admin/employees"
+                className="px-4 py-2 bg-primary-dark hover:bg-primary-blue text-white rounded-xl text-xs font-bold transition"
+              >
+                Go to Employees Directory →
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setSuccessInfo(null);
+                  setFullName('');
+                  setEmployeeCode('');
+                  setEmail('');
+                  setPhone('+91 ');
+                  setDesignation('');
+                  setPassportNumber('');
+                }}
+                className="px-4 py-2 bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100/50 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                + Add Another Employee
+              </button>
+            </div>
           </div>
         )}
 

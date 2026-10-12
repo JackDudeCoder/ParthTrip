@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { toDDMMYYYY } from '@/components/ui/IndiaDatePicker';
-import { formatToINR } from '@/components/ui/RupeeInput';
+import { toDDMMYYYY, formatToINR } from '@/lib/format';
 import { Users, Plane, Calendar, IndianRupee, Plus, ArrowRight } from 'lucide-react';
 
 export default async function AdminDashboardPage() {

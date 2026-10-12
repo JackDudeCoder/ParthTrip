@@ -25,6 +25,11 @@ export default async function AdminLayout({
     redirect('/employee/dashboard');
   }
 
+  if (!profile?.company_id) {
+    const { ensureAdminCompany } = await import('@/app/admin/employees/actions');
+    await ensureAdminCompany();
+  }
+
   return (
     <div className="min-h-screen bg-bg-ice text-primary-blue font-sans flex flex-col justify-between p-4 md:p-8">
       <div className="max-w-6xl mx-auto w-full space-y-6">

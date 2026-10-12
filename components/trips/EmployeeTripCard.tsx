@@ -2,8 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { toDDMMYYYY } from '@/components/ui/IndiaDatePicker';
-import { formatToINR } from '@/components/ui/RupeeInput';
+import { toDDMMYYYY, formatToINR } from '@/lib/format';
 import {
   Users,
   MapPin,

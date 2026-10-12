@@ -2,8 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { toDDMMYYYY } from '@/components/ui/IndiaDatePicker';
-import { formatToINR } from '@/components/ui/RupeeInput';
+import { toDDMMYYYY, formatToINR } from '@/lib/format';
 import { ArrowLeft, MapPin, Calendar, Users, Star, FileText, CheckCircle2, XCircle } from 'lucide-react';
 
 export default async function AdminTripDetailsPage({

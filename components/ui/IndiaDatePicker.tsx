@@ -17,29 +17,8 @@ interface IndiaDatePickerProps {
   className?: string;
 }
 
-// Converts YYYY-MM-DD -> DD/MM/YYYY
-export function toDDMMYYYY(isoDate: string): string {
-  if (!isoDate) return '';
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(isoDate)) return isoDate;
-  const parts = isoDate.split('-');
-  if (parts.length === 3) {
-    const [year, month, day] = parts;
-    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
-  }
-  return isoDate;
-}
-
-// Converts DD/MM/YYYY -> YYYY-MM-DD
-export function toISODate(ddmmyyyy: string): string {
-  if (!ddmmyyyy) return '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(ddmmyyyy)) return ddmmyyyy;
-  const parts = ddmmyyyy.split('/');
-  if (parts.length === 3) {
-    const [day, month, year] = parts;
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-  }
-  return ddmmyyyy;
-}
+import { toDDMMYYYY, toISODate } from '@/lib/format';
+export { toDDMMYYYY, toISODate };
 
 export function IndiaDatePicker({
   label,

@@ -1,8 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { toDDMMYYYY } from '@/components/ui/IndiaDatePicker';
-import { formatToINR } from '@/components/ui/RupeeInput';
+import { toDDMMYYYY, formatToINR } from '@/lib/format';
 import { Plus, Plane, MapPin, Calendar, Users, Star } from 'lucide-react';
 
 export default async function AdminTripsPage() {
