@@ -6,6 +6,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/AuthContext';
+import { IndiaPhoneInput } from '@/components/ui/IndiaPhoneInput';
+import { validatePasswordStrength } from '@/lib/security';
 
 
 function LoginContent() {
@@ -28,10 +30,18 @@ function LoginContent() {
   // Register State (Admins only)
   const [regFullName, setRegFullName] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [regPhone, setRegPhone] = useState('+91');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [strengthScore, setStrengthScore] = useState(0);
+
+  // Open register tab if URL has ?tab=register
+  useEffect(() => {
+    if (searchParams.get('tab') === 'register') {
+      setActiveTab('register');
+    }
+  }, [searchParams]);
 
   // If already authenticated, redirect to role dashboard
   useEffect(() => {
@@ -136,10 +146,13 @@ function LoginContent() {
       setError('Please enter your full name.');
       return;
     }
-    if (regPassword.length < 8) {
-      setError('Password must be at least 8 characters long.');
+
+    const pwCheck = validatePasswordStrength(regPassword);
+    if (!pwCheck.valid) {
+      setError(pwCheck.message);
       return;
     }
+
     if (regPassword !== regConfirmPassword) {
       setError('Passwords do not match.');
       return;
@@ -155,6 +168,7 @@ function LoginContent() {
         options: {
           data: {
             full_name: regFullName.trim(),
+            phone: regPhone,
             role: 'admin',
           },
         },
@@ -166,6 +180,13 @@ function LoginContent() {
             ? 'An account with this email already exists. Please log in.'
             : signUpError.message || 'Registration failed.'
         );
+        setLoading(false);
+        return;
+      }
+
+      // Supabase returns user with empty identities when email already exists and email confirmation is ON
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        setError('An account with this email already exists. Please log in.');
         setLoading(false);
         return;
       }
@@ -302,7 +323,6 @@ function LoginContent() {
                       await supabase.auth.resend({
                         type: 'signup',
                         email: unconfirmedEmail,
-                        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
                       });
                       setError('Verification email resent. Please check your inbox.');
                       setUnconfirmedEmail('');
@@ -473,6 +493,15 @@ function LoginContent() {
                     required
                   />
                 </div>
+
+                {/* PHONE NUMBER WITH COUNTRY CODE */}
+                <IndiaPhoneInput
+                  label="Phone Number"
+                  value={regPhone}
+                  onChange={(full) => setRegPhone(full)}
+                  disabled={loading}
+                  required
+                />
 
                 {/* PASSWORD WITH LIVE STRENGTH METER */}
                 <div>
