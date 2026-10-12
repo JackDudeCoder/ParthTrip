@@ -23,7 +23,7 @@ export default function AddEmployeePage() {
   const [passportNumber, setPassportNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [successInfo, setSuccessInfo] = useState<{ inviteLink?: string; inviteSent?: boolean } | null>(null);
+  const [successInfo, setSuccessInfo] = useState<{ inviteLink?: string; inviteSent?: boolean; adminName?: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,6 +57,7 @@ export default function AddEmployeePage() {
       setSuccessInfo({
         inviteLink: result.inviteLink,
         inviteSent: result.inviteSent,
+        adminName: result.adminName,
       });
       setLoading(false);
     } catch (err) {
@@ -112,12 +113,12 @@ export default function AddEmployeePage() {
             <div className="flex items-center gap-2.5 font-bold text-sm text-emerald-800">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
               <span>
-                Employee successfully added to database! A magic login link has been sent to their email.
+                Employee added successfully! An invitation from Admin &quot;{successInfo.adminName || 'Admin'}&quot; has been dispatched.
               </span>
             </div>
             {successInfo.inviteLink && (
               <div className="space-y-1.5 pt-1">
-                <p className="text-xs text-slate-600 font-medium">Direct Invitation Link (for employee onboarding):</p>
+                <p className="text-xs text-slate-600 font-medium">Direct Onboarding Link (Welcome & Password Setup):</p>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"

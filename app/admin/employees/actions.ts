@@ -18,6 +18,7 @@ export interface AddEmployeeResult {
   error?: string;
   inviteLink?: string;
   inviteSent?: boolean;
+  adminName?: string;
 }
 
 /**
@@ -123,22 +124,32 @@ export async function addAndInviteEmployee(input: AddEmployeeInput): Promise<Add
     return { success: false, error: 'An employee with this Employee Code already exists.' };
   }
 
-  // 2. Invite user via Supabase Auth Admin (Dispatches magic link / invite email)
+  // 2. Fetch administrator profile to personalize the invite
+  const { data: adminProfile } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const adminName = adminProfile?.full_name || 'Organization Admin';
+
+  // 3. Prepare target setup-password onboarding URL
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
+  const setupUrl = `${siteUrl}/auth/setup-password`;
+  const directOnboardingUrl = `${setupUrl}?email=${encodeURIComponent(normalizedEmail)}&name=${encodeURIComponent(normalizedName)}&admin=${encodeURIComponent(adminName)}`;
+
   let authUserId: string | null = null;
-  let inviteLink: string | undefined;
   let inviteSent = false;
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
-  const callbackUrl = `${siteUrl}/auth/callback`;
-
   try {
-    // Dispatch official Supabase invitation email with magic login link
+    // Dispatch official Supabase invitation email with admin metadata and custom redirect
     const { data: inviteData, error: inviteErr } = await adminClient.auth.admin.inviteUserByEmail(
       normalizedEmail,
       {
-        redirectTo: callbackUrl,
+        redirectTo: directOnboardingUrl,
         data: {
           full_name: normalizedName,
+          admin_name: adminName,
           role: 'employee',
           company_id: companyId,
         },
@@ -152,49 +163,21 @@ export async function addAndInviteEmployee(input: AddEmployeeInput): Promise<Add
       inviteErr?.message?.toLowerCase().includes('already registered') ||
       inviteErr?.message?.toLowerCase().includes('already been registered')
     ) {
-      // If user already exists in auth, dispatch magic link via signInWithOtp
+      // If user already exists in auth, look up existing user ID
       const { data: listData } = await adminClient.auth.admin.listUsers();
       const existingUser = listData?.users?.find((u) => u.email?.toLowerCase() === normalizedEmail);
       if (existingUser) {
         authUserId = existingUser.id;
       }
-      const client = await createClient();
-      await client.auth.signInWithOtp({
-        email: normalizedEmail,
-        options: {
-          emailRedirectTo: callbackUrl,
-        },
-      });
       inviteSent = true;
     } else if (inviteErr) {
       console.warn('[addAndInviteEmployee] inviteUserByEmail note:', inviteErr.message);
-    }
-
-    // Also generate direct action link for immediate on-screen access
-    const { data: linkData } = await adminClient.auth.admin.generateLink({
-      type: 'invite',
-      email: normalizedEmail,
-      options: {
-        redirectTo: callbackUrl,
-        data: {
-          full_name: normalizedName,
-          role: 'employee',
-          company_id: companyId,
-        },
-      },
-    });
-
-    if (linkData?.properties?.action_link) {
-      inviteLink = linkData.properties.action_link;
-      if (!authUserId && linkData.user?.id) {
-        authUserId = linkData.user.id;
-      }
     }
   } catch (authErr) {
     console.error('[addAndInviteEmployee] Auth invite error:', authErr);
   }
 
-  // If user was created in auth, ensure public.profiles row is synchronized with company
+  // 4. Synchronize public.profiles with company and metadata
   if (authUserId) {
     await adminClient.from('profiles').upsert({
       id: authUserId,
@@ -207,7 +190,7 @@ export async function addAndInviteEmployee(input: AddEmployeeInput): Promise<Add
     });
   }
 
-  // 3. Insert record into public.employees
+  // 5. Insert record into public.employees
   const { error: empInsertErr } = await adminClient.from('employees').insert({
     company_id: companyId,
     user_id: authUserId,
@@ -228,7 +211,8 @@ export async function addAndInviteEmployee(input: AddEmployeeInput): Promise<Add
 
   return {
     success: true,
-    inviteLink,
+    inviteLink: directOnboardingUrl,
     inviteSent,
+    adminName,
   };
 }
