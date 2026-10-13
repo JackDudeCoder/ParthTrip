@@ -6,7 +6,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/AuthContext';
-import { IndiaPhoneInput } from '@/components/ui/IndiaPhoneInput';
 import { validatePasswordStrength } from '@/lib/security';
 
 
@@ -30,7 +29,6 @@ function LoginContent() {
   // Register State (Admins only)
   const [regFullName, setRegFullName] = useState('');
   const [regEmail, setRegEmail] = useState('');
-  const [regPhone, setRegPhone] = useState('+91');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [showRegPassword, setShowRegPassword] = useState(false);
@@ -107,14 +105,17 @@ function LoginContent() {
         return;
       }
 
-      // Check user profile role in public.profiles
+      // Check user profile role in public.profiles and auth metadata
       const { data: userProfile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', data.user.id)
         .maybeSingle();
 
-      const userActualRole = userProfile?.role || 'employee';
+      const userMetaRole = (data.user.user_metadata?.role as string | undefined)?.toLowerCase();
+      const profileRole = userProfile?.role?.toLowerCase();
+      const isUserAdmin = profileRole === 'admin' || userMetaRole === 'admin';
+      const userActualRole = isUserAdmin ? 'admin' : (profileRole || 'employee');
 
       // Verify that user selected the correct role
       if (userActualRole !== role) {
@@ -122,6 +123,14 @@ function LoginContent() {
         await supabase.auth.signOut();
         setLoading(false);
         return;
+      }
+
+      // Self-heal profile in database if out of sync
+      if (isUserAdmin && profileRole !== 'admin') {
+        await supabase
+          .from('profiles')
+          .update({ role: 'admin' })
+          .eq('id', data.user.id);
       }
 
       // Route to respective dashboard
@@ -168,7 +177,6 @@ function LoginContent() {
         options: {
           data: {
             full_name: regFullName.trim(),
-            phone: regPhone,
             role: 'admin',
           },
         },
@@ -194,6 +202,16 @@ function LoginContent() {
       if (data.user && !data.session) {
         router.push(`/verify-email?email=${encodeURIComponent(regEmail.trim().toLowerCase())}`);
       } else {
+        if (data.user) {
+          await supabase
+            .from('profiles')
+            .upsert({
+              id: data.user.id,
+              full_name: regFullName.trim(),
+              email: regEmail.trim().toLowerCase(),
+              role: 'admin',
+            }, { onConflict: 'id' });
+        }
         router.replace('/admin');
       }
     } catch (err) {
@@ -493,15 +511,6 @@ function LoginContent() {
                     required
                   />
                 </div>
-
-                {/* PHONE NUMBER WITH COUNTRY CODE */}
-                <IndiaPhoneInput
-                  label="Phone Number"
-                  value={regPhone}
-                  onChange={(full) => setRegPhone(full)}
-                  disabled={loading}
-                  required
-                />
 
                 {/* PASSWORD WITH LIVE STRENGTH METER */}
                 <div>
